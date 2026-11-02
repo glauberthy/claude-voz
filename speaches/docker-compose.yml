@@ -1,0 +1,34 @@
+# Speaches: servidor local de TTS (Kokoro) e STT (faster-whisper), API compatível com OpenAI.
+# Fonte: https://speaches.ai/installation/ e compose.cuda.yaml do repositório speaches-ai/speaches.
+# Subir:  docker compose -f speaches/docker-compose.yml up -d   Parar: ... down
+# Logs:   docker compose logs -f      Remover tudo (inclusive modelos): docker compose down -v
+services:
+  speaches:
+    container_name: speaches
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # só a própria máquina acessa
+    environment:
+      LOG_LEVEL: info
+      ENABLE_UI: "false"        # sem interface Gradio; só a API
+      STT_MODEL_TTL: "300"      # descarrega o Whisper da GPU após 5 min ocioso (recarga leva 1 a 2 s)
+      TTS_MODEL_TTL: "300"      # idem para o Kokoro
+    volumes:
+      - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub   # modelos baixados ficam aqui
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://0.0.0.0:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  hf-hub-cache:

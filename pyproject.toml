@@ -1,0 +1,21 @@
+[project]
+name = "claude-voz"
+version = "0.1.0"
+description = "Cliente de voz para o Claude Code (Agent SDK + Speaches local)"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Glauberthy" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "claude-agent-sdk>=0.2.176",
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+claude-voz = "claude_voz:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12.0"]
+build-backend = "uv_build"
