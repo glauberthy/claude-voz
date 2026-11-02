@@ -1,0 +1,22 @@
+# Rápido TTS: voz em português do Brasil, na GPU, com a API /v1/audio/speech (igual ao Speaches).
+# Subir:  docker compose -f rapido-tts/docker-compose.yml up -d --build
+# Logs:   docker compose -f rapido-tts/docker-compose.yml logs -f
+services:
+  rapido-tts:
+    container_name: rapido-tts
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"   # só a própria máquina acessa
+    volumes:
+      - hf-cache:/cache/huggingface   # pesos do modelo (rapido.pt + decodificador VoxCPM2)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  hf-cache:

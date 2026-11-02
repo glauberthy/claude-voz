@@ -13,18 +13,30 @@ import httpx
 class Speaches:
     """Cliente HTTP do Speaches: /v1/audio/transcriptions e /v1/audio/speech."""
 
-    def __init__(self, url: str, voz: str, modelo_tts: str, modelo_stt: str, velocidade: float, prompt_stt: str):
-        self.url = url.rstrip("/")
+    def __init__(self, url: str, voz: str, modelo_tts: str, modelo_stt: str, velocidade: float, prompt_stt: str,
+                 url_tts: str | None = None):
+        self.url = url.rstrip("/")                      # transcrição (Whisper)
+        self.url_tts = (url_tts or url).rstrip("/")     # voz: o mesmo Speaches, ou outro servidor com a mesma API
         self.voz = voz
         self.modelo_tts = modelo_tts
         self.modelo_stt = modelo_stt
         self.velocidade = velocidade
         self.prompt_stt = prompt_stt
         self._http = httpx.AsyncClient(base_url=self.url, timeout=httpx.Timeout(60.0, connect=3.0))
+        self._http_tts = self._http if self.url_tts == self.url else httpx.AsyncClient(base_url=self.url_tts, timeout=httpx.Timeout(60.0, connect=3.0))
 
     async def saudavel(self) -> bool:
+        """Transcrição no ar?"""
+        return await self._saudavel(self._http)
+
+    async def saudavel_tts(self) -> bool:
+        """Voz no ar?"""
+        return await self._saudavel(self._http_tts)
+
+    @staticmethod
+    async def _saudavel(http: httpx.AsyncClient) -> bool:
         try:
-            r = await self._http.get("/health", timeout=3.0)
+            r = await http.get("/health", timeout=3.0)
             return r.status_code == 200
         except httpx.HTTPError:
             return False
@@ -48,12 +60,14 @@ class Speaches:
             "response_format": "wav",
             "speed": self.velocidade,
         }
-        r = await self._http.post("/v1/audio/speech", json=corpo)
+        r = await self._http_tts.post("/v1/audio/speech", json=corpo)
         r.raise_for_status()
         return r.content
 
     async def fechar(self) -> None:
         await self._http.aclose()
+        if self._http_tts is not self._http:
+            await self._http_tts.aclose()
 
 
 class Gravador:

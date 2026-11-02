@@ -3,7 +3,9 @@
 Uso: claude-voz [diretorio-do-projeto]
 
 Variáveis de ambiente (todas opcionais):
-  CLAUDE_VOZ_SPEACHES_URL   padrão http://127.0.0.1:8000
+  CLAUDE_VOZ_SPEACHES_URL   padrão http://127.0.0.1:8000 (transcrição; e voz, se CLAUDE_VOZ_TTS_URL não for dada)
+  CLAUDE_VOZ_TTS_URL        servidor de voz com a API /v1/audio/speech; padrão: o mesmo do Speaches.
+                            Ex.: http://127.0.0.1:8001 para o Rápido TTS (pasta rapido-tts/)
   CLAUDE_VOZ_VOZ            padrão pm_alex   (vozes pt-BR do Kokoro: pf_dora, pm_alex, pm_santa)
   CLAUDE_VOZ_MODELO_TTS     padrão speaches-ai/Kokoro-82M-v1.0-ONNX
   CLAUDE_VOZ_MODELO_WHISPER padrão deepdml/faster-whisper-large-v3-turbo-ct2
@@ -338,8 +340,10 @@ class Sessao:
             modelo_stt=_env("CLAUDE_VOZ_MODELO_WHISPER", "deepdml/faster-whisper-large-v3-turbo-ct2"),
             velocidade=float(_env("CLAUDE_VOZ_VELOCIDADE", "1.0")),
             prompt_stt=_env("CLAUDE_VOZ_PROMPT_WHISPER", ""),
+            url_tts=_env("CLAUDE_VOZ_TTS_URL", "") or None,
         )
-        self.voz_ativa = False
+        self.voz_ativa = False   # síntese de voz no ar
+        self.stt_ativo = False   # transcrição no ar (microfone)
         self.reprodutor = Reprodutor(self.speaches, ao_comecar_primeiro_audio=self._marcar_primeiro_audio)
         self.separador = SeparadorDeFrases()
         self.leitor: LeitorTerminal | None = None
@@ -591,12 +595,20 @@ class Sessao:
         self.leitor = LeitorTerminal()
         loop.add_signal_handler(signal.SIGINT, self._ctrl_c)
 
-        self.voz_ativa = await self.speaches.saudavel()
+        self.stt_ativo = await self.speaches.saudavel()
+        self.voz_ativa = await self.speaches.saudavel_tts()
         if self.voz_ativa:
             self.reprodutor.iniciar()
-            self.tela.discreto(f"Speaches em {self.speaches.url} · voz {self.speaches.voz} · whisper {self.speaches.modelo_stt}")
+        if self.speaches.url_tts == self.speaches.url:
+            descricao_voz = f"voz {self.speaches.voz}"
         else:
-            self.tela.aviso(f"Speaches fora do ar em {self.speaches.url}: funcionando só em texto (sem microfone e sem voz).")
+            descricao_voz = f"voz em {self.speaches.url_tts}"
+        if self.stt_ativo and self.voz_ativa:
+            self.tela.discreto(f"transcrição em {self.speaches.url} ({self.speaches.modelo_stt}) · {descricao_voz}")
+        if not self.stt_ativo:
+            self.tela.aviso(f"transcrição fora do ar em {self.speaches.url}: sem microfone, digite o texto.")
+        if not self.voz_ativa:
+            self.tela.aviso(f"voz fora do ar em {self.speaches.url_tts}: respostas só na tela.")
 
         wrapper = Path(__file__).with_name("claude-sem-ctrl-c.sh")
         opcoes = ClaudeAgentOptions(
@@ -629,8 +641,8 @@ class Sessao:
                         self.tela.linha("")
                         break
                     if linha.strip() == "":
-                        if not self.voz_ativa:
-                            self.tela.aviso("sem voz: digite o texto.")
+                        if not self.stt_ativo:
+                            self.tela.aviso("sem transcrição: digite o texto.")
                             continue
                         texto = await self.gravar()
                         if not texto:

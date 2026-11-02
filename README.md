@@ -34,6 +34,22 @@ microfone ──arecord──▶ WAV ──▶ Speaches /v1/audio/transcriptions
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper) para transcrever e o
 [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) para falar. Um container, sem código de servidor próprio.
 
+### Voz alternativa: Rápido TTS
+
+O [Rápido TTS](https://huggingface.co/edwixx/rapido-tts) é um modelo pequeno (21 M de parâmetros, Apache 2.0)
+treinado só em português do Brasil, com uma voz, a 48 kHz, sem o sotaque do Kokoro. Ele não tem servidor HTTP
+próprio, então a pasta `rapido-tts/` traz um: `server.py` (FastAPI, ~80 linhas) expõe a mesma API
+`/v1/audio/speech`, e o `Dockerfile` instala o torch com CUDA e o código do modelo fixado por commit. Com ele o
+desenho fica com dois containers: o Speaches só transcreve e o `rapido-tts` fala.
+
+```bash
+docker compose -f rapido-tts/docker-compose.yml up -d --build   # imagem de 11 GB (torch + CUDA); modelo de 42 MB
+export CLAUDE_VOZ_TTS_URL=http://127.0.0.1:8001
+```
+
+Medido numa RTX 4000 Ada: 0,10 s por frase curta, 0,19 s por frase de 150 caracteres, 1,65 GB de VRAM, 27 s para
+carregar. O Rápido ignora `CLAUDE_VOZ_VOZ` e `CLAUDE_VOZ_MODELO_TTS` (tem uma voz só); `CLAUDE_VOZ_VELOCIDADE` vale.
+
 ## Requisitos
 
 - Linux com ALSA (`arecord` e `aplay`), Python 3.12 e [uv](https://docs.astral.sh/uv/).
@@ -122,7 +138,8 @@ Tudo por variável de ambiente, com padrão:
 
 | Variável | Padrão | O que é |
 |---|---|---|
-| `CLAUDE_VOZ_SPEACHES_URL` | `http://127.0.0.1:8000` | onde está o Speaches |
+| `CLAUDE_VOZ_SPEACHES_URL` | `http://127.0.0.1:8000` | onde está o Speaches (transcrição; e voz, se a URL abaixo não for dada) |
+| `CLAUDE_VOZ_TTS_URL` | igual à de cima | servidor de voz com a API `/v1/audio/speech` (ex.: `http://127.0.0.1:8001` para o Rápido) |
 | `CLAUDE_VOZ_VOZ` | `pm_alex` | voz do Kokoro; em pt-BR: `pf_dora` (feminina), `pm_alex`, `pm_santa` |
 | `CLAUDE_VOZ_MODELO_TTS` | `speaches-ai/Kokoro-82M-v1.0-ONNX` | modelo de voz |
 | `CLAUDE_VOZ_MODELO_WHISPER` | `deepdml/faster-whisper-large-v3-turbo-ct2` | modelo de transcrição |
@@ -147,6 +164,7 @@ src/claude_voz/
   fala.py                limpeza do texto para voz e corte em frases (ignora blocos de código)
   claude-sem-ctrl-c.sh   abre o `claude` fora do grupo de processos do terminal
 speaches/docker-compose.yml
+rapido-tts/               servidor de voz alternativo (Dockerfile, server.py, docker-compose.yml)
 ```
 
 O `claude-sem-ctrl-c.sh` existe porque o Ctrl+C do terminal vai para todos os processos do grupo, inclusive o
@@ -160,6 +178,7 @@ Log do processo `claude`: `~/.cache/claude-voz/claude-cli.log`.
 uv tool uninstall claude-voz
 docker compose -f speaches/docker-compose.yml down -v   # -v apaga o volume com os modelos
 docker rmi ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+docker compose -f rapido-tts/docker-compose.yml down -v --rmi local   # se usou o Rápido
 rm -rf ~/.cache/claude-voz
 ```
 
