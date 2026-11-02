@@ -425,11 +425,23 @@ class Sessao:
         elif nome in ("Edit", "Write", "MultiEdit") and entrada.get("file_path"):
             self.tela.linha(f"   {entrada['file_path']}")
         regra = regra_de_sessao(nome, entrada)
+        acao = {
+            "Bash": "rodar um comando", "Edit": "alterar um arquivo", "MultiEdit": "alterar um arquivo",
+            "Write": "criar ou sobrescrever um arquivo", "NotebookEdit": "alterar um notebook",
+            "WebFetch": "acessar um site", "Agent": "chamar um agente",
+        }.get(nome, f"usar {nome}")
         if regra:
             programa = regra[5:-3] if regra.startswith("Bash(") else regra  # "Bash(curl *)" -> "curl"
-            self.falar(f"Preciso de permissão para {nome}: {descricao}. Responda s, n, ou t para liberar {programa} nesta sessão.")
+            partes_programa = programa.split()
+            if len(partes_programa) == 1:                     # "curl" -> "tê libera curl nesta sessão"
+                o_que = programa
+            elif "-" in partes_programa[-1]:                   # "git for-each-ref" -> "esse comando do git"
+                o_que = f"esse comando do {partes_programa[0]}"
+            else:                                              # "git push" -> "git push"
+                o_que = programa
+            self.falar(f"Preciso de permissão para {acao}: {descricao}. Responda ésse, ene ou tê; tê libera {o_que} nesta sessão.")
         else:
-            self.falar(f"Preciso de permissão para {nome}: {descricao}. Responda s ou n.")
+            self.falar(f"Preciso de permissão para {acao}: {descricao}. Responda ésse ou ene.")
         if regra:
             self.tela.texto(f"{AMARELO}Permitir? [s/n/t = sim e não perguntar mais nesta sessão para {regra}] {RESET}")
         else:

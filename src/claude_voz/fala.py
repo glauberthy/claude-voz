@@ -29,7 +29,7 @@ _RE_LETRAS = re.compile(r"[A-Za-zÀ-ÿ]")
 # Para acrescentar ou corrigir sem mexer no código: arquivo apontado por CLAUDE_VOZ_PRONUNCIA, uma linha por
 # termo, no formato `termo=como falar` (ex.: `keycloak=quiclôuc`). Comparação sem diferenciar maiúsculas.
 PRONUNCIA_PADRAO: dict[str, str] = {
-    "bash": "béch", "git": "guít", "github": "guít-rãb", "commit": "comít", "commits": "comíts", "push": "púch",
+    "bash": "bésh", "git": "guít", "github": "guít-rãb", "commit": "comít", "commits": "comíts", "push": "púch",
     "pull": "púl", "fetch": "fétch", "merge": "mârdj", "rebase": "ribêiz", "branch": "brênch", "branches": "brênches",
     "checkout": "tchécaut", "stash": "stéch", "diff": "díf", "log": "lóg", "status": "státus", "clone": "clôun",
     "docker": "dóquer", "compose": "compôuz", "container": "contêiner", "build": "bíld", "deploy": "diplói",
