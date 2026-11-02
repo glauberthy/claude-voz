@@ -13,6 +13,8 @@ o texto aparece na tela. Só o Claude é remoto: nenhum áudio ou texto passa po
 - Entrada por voz (Enter grava, Enter envia) ou por texto digitado.
 - Resposta falada em streaming: cada frase completa entra numa fila e é tocada em ordem, sem travar o recebimento.
 - Código, caminhos longos, links e markdown ficam só na tela; a voz fala o resto.
+- Termos em inglês saem com pronúncia de português (`git` vira "guít", `bash` "béch", `deploy` "diplói") e siglas em
+  maiúsculas são soletradas (`FPS` vira "éfe-pê-ésse"). A tabela está em `fala.py`; `CLAUDE_VOZ_PRONUNCIA` acrescenta.
 - Cada ferramenta que o Claude usa aparece numa linha compacta (`🔧 Bash: git status`).
 - Ler e buscar não pedem permissão. Alterar arquivo ou rodar comando que muda algo: a voz pede e você responde
   `s`, `n` ou `t` (sim, e não perguntar mais nesta sessão para esse programa).
@@ -150,6 +152,7 @@ Tudo por variável de ambiente, com padrão:
 | `CLAUDE_VOZ_LIBERAR` | vazio | regras extras liberadas, ex.: `Bash(go test *),Bash(npm run *)` |
 | `CLAUDE_VOZ_NEGAR` | vazio | regras extras bloqueadas |
 | `CLAUDE_VOZ_CLI` | `claude` do `PATH` | caminho do executável do Claude Code |
+| `CLAUDE_VOZ_PRONUNCIA` | vazio | arquivo `termo=como falar` por linha, para a voz ler termos em inglês do seu jeito |
 
 Outras vozes: o Speaches também roda o [Piper](https://github.com/rhasspy/piper); baixe com
 `curl -X POST http://127.0.0.1:8000/v1/models/speaches-ai/piper-pt_BR-faber-medium` e use

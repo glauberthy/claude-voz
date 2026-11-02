@@ -24,6 +24,79 @@ _RE_SEPARADOR = re.compile(r"^\s*([-*_]\s*){3,}$", re.MULTILINE)
 _RE_ESPACOS = re.compile(r"[ \t]+")
 _RE_LETRAS = re.compile(r"[A-Za-zÀ-ÿ]")
 
+# Pronúncia de termos em inglês: o Rápido (e o Kokoro) leem com regra de português, então "bash" vira "báchi".
+# A troca é só no texto que vai para a voz; a tela mostra o termo original. Grafia aproximada em português.
+# Para acrescentar ou corrigir sem mexer no código: arquivo apontado por CLAUDE_VOZ_PRONUNCIA, uma linha por
+# termo, no formato `termo=como falar` (ex.: `keycloak=quiclôuc`). Comparação sem diferenciar maiúsculas.
+PRONUNCIA_PADRAO: dict[str, str] = {
+    "bash": "béch", "git": "guít", "github": "guít-rãb", "commit": "comít", "commits": "comíts", "push": "púch",
+    "pull": "púl", "fetch": "fétch", "merge": "mârdj", "rebase": "ribêiz", "branch": "brênch", "branches": "brênches",
+    "checkout": "tchécaut", "stash": "stéch", "diff": "díf", "log": "lóg", "status": "státus", "clone": "clôun",
+    "docker": "dóquer", "compose": "compôuz", "container": "contêiner", "build": "bíld", "deploy": "diplói",
+    "pipeline": "páiplain", "jenkins": "djênquins", "stage": "stêidj", "release": "rilís", "debug": "dibâg",
+    "bug": "bâg", "bugs": "bâgs", "script": "scrípt", "scripts": "scrípts", "shell": "chél", "terminal": "terminal",
+    "python": "páiton", "node": "nôud", "npm": "ene-pê-eme", "go": "gôu", "golang": "gôu-lang", "vue": "viú",
+    "pinia": "pínia", "vite": "vít", "typescript": "táipscript", "javascript": "djávascript", "json": "djêison",
+    "yaml": "iâmel", "toml": "tômel", "sql": "ésse-quê-éle", "api": "a-pê-í", "rest": "rést", "http": "agá-tê-tê-pê",
+    "url": "u-érre-éle", "uri": "u-érre-í", "id": "i-dê", "ids": "i-dês", "jwt": "jóta-dáblio-tê", "token": "tôquen",
+    "tokens": "tôquens", "login": "lóguin", "logout": "lógaut", "email": "imêil", "e-mail": "imêil", "cache": "quéche",
+    "backend": "béquend", "frontend": "frontend", "framework": "frêimuork", "middleware": "mídeluér",
+    "endpoint": "êndpoint", "handler": "rândler", "service": "sérvis", "repository": "ripózitori", "domain": "domêin",
+    "transport": "transport", "router": "ráuter", "store": "stór", "composable": "compôuzabol", "component": "compônent",
+    "readme": "rídmi", "claude": "clôd", "anthropic": "antrópic", "opus": "ópus", "sonnet": "sônet", "whisper": "uísper",
+    "speaches": "spítches", "kokoro": "cocôro", "keycloak": "quiclôuc", "realm": "rélm", "client": "cláient",
+    "postgres": "póstgres", "mysql": "mai-ésse-quê-éle", "redis": "rédis", "nginx": "êndjin-écs", "linux": "línux",
+    "ubuntu": "ubúntu", "windows": "uíndous", "android": "ândroid", "kotlin": "cótlin", "gradle": "grêidol",
+    "flutter": "flâter", "test": "tést", "tests": "tésts", "mock": "móc", "lint": "línt", "make": "mêic", "check": "tchéc",
+    "timeout": "táimaut", "upload": "âplôud", "download": "dáunlôud", "file": "fáil", "path": "páf", "default": "difólt",
+    "host": "rôust", "port": "pórt", "localhost": "lôucal-rôust", "root": "rút", "sudo": "súdo", "home": "rôum",
+    "feature": "fítcher", "hotfix": "rótfics", "main": "mêin", "master": "máster", "develop": "divélop", "tag": "tég",
+    "issue": "íchu", "issues": "íchus", "pull request": "púl ricuést", "review": "riviú", "ok": "ôquei", "okay": "ôquei",
+}
+
+
+def carregar_pronuncia_extra(caminho: str | None) -> dict[str, str]:
+    """Lê um arquivo `termo=como falar` por linha; linhas vazias e com # são ignoradas."""
+    extra: dict[str, str] = {}
+    if not caminho:
+        return extra
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            for linha in f:
+                linha = linha.strip()
+                if not linha or linha.startswith("#") or "=" not in linha:
+                    continue
+                termo, _, fala = linha.partition("=")
+                if termo.strip():
+                    extra[termo.strip().lower()] = fala.strip()
+    except OSError:
+        pass
+    return extra
+
+
+class Pronuncia:
+    """Troca termos (palavra inteira, sem diferenciar maiúsculas) pela grafia falada."""
+
+    def __init__(self, tabela: dict[str, str]):
+        self._tabela = {k.lower(): v for k, v in tabela.items()}
+        # termos maiores primeiro, para "pull request" ganhar de "pull"
+        termos = sorted(self._tabela, key=len, reverse=True)
+        self._re = re.compile(r"(?<![\w-])(" + "|".join(re.escape(t) for t in termos) + r")(?![\w-])", re.IGNORECASE) if termos else None
+
+    def aplicar(self, texto: str) -> str:
+        if self._re:
+            texto = self._re.sub(lambda m: self._tabela[m.group(1).lower()], texto)
+        return _RE_SIGLA.sub(lambda m: "-".join(_LETRAS[c] for c in m.group(1)), texto)
+
+
+# Sigla em maiúsculas (2 a 5 letras: FPS, HML, PRD, SQL, PK) é soletrada; o que está na tabela acima ganha antes.
+_RE_SIGLA = re.compile(r"(?<![\w-])([A-Z]{2,5})(?![\w-])")
+_LETRAS = {
+    "A": "á", "B": "bê", "C": "cê", "D": "dê", "E": "é", "F": "éfe", "G": "gê", "H": "agá", "I": "i", "J": "jóta",
+    "K": "cá", "L": "éle", "M": "eme", "N": "ene", "O": "ó", "P": "pê", "Q": "quê", "R": "érre", "S": "ésse", "T": "tê",
+    "U": "u", "V": "vê", "W": "dáblio", "X": "xis", "Y": "ípsilon", "Z": "zê",
+}
+
 
 def limpar_para_fala(texto: str) -> str:
     """Remove o que não deve ser lido em voz alta. Devolve '' se não sobrar nada falável."""

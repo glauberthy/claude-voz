@@ -16,6 +16,8 @@ Variáveis de ambiente (todas opcionais):
   CLAUDE_VOZ_DIRS           pastas extras em que ler não pede permissão, separadas por vírgula; padrão: a pasta pessoal
   CLAUDE_VOZ_NEGAR          regras bloqueadas sempre, além de REGRAS_NEGAR (~/.ssh, ~/.aws, credenciais...)
   CLAUDE_VOZ_CLI            caminho do executável `claude` (padrão: o `claude` do PATH)
+  CLAUDE_VOZ_PRONUNCIA      arquivo `termo=como falar` por linha, para corrigir a pronúncia de termos em inglês
+                            além da tabela PRONUNCIA_PADRAO de fala.py (ex.: `keycloak=quiclôuc`)
   CLAUDE_VOZ_LIBERAR        regras liberadas sem perguntar, só no claude-voz, separadas por vírgula
                             (sintaxe do Claude Code, ex.: "Bash(curl *),Bash(go test *)"); padrão vazio
 """
@@ -61,7 +63,7 @@ from .audio import Gravador, Reprodutor, Speaches
 warnings.filterwarnings("ignore", message="can_use_tool will not be invoked")
 # O SDK (anyio) e o asyncio disputam o waitpid dos subprocessos; o aviso "exit status already read" é inofensivo.
 logging.getLogger("asyncio").setLevel(logging.ERROR)
-from .fala import SeparadorDeFrases, limpar_para_fala
+from .fala import PRONUNCIA_PADRAO, Pronuncia, SeparadorDeFrases, carregar_pronuncia_extra, limpar_para_fala
 
 INSTRUCAO_VOZ = (
     "Esta sessão é por voz. Entre uma ferramenta e outra, escreva no máximo uma frase curta "
@@ -346,6 +348,7 @@ class Sessao:
         self.stt_ativo = False   # transcrição no ar (microfone)
         self.reprodutor = Reprodutor(self.speaches, ao_comecar_primeiro_audio=self._marcar_primeiro_audio)
         self.separador = SeparadorDeFrases()
+        self.pronuncia = Pronuncia({**PRONUNCIA_PADRAO, **carregar_pronuncia_extra(_env("CLAUDE_VOZ_PRONUNCIA", ""))})
         self.leitor: LeitorTerminal | None = None
         self.cliente: ClaudeSDKClient | None = None
         self.estado = "ocioso"  # ocioso | gravando | respondendo | permissao
@@ -376,7 +379,7 @@ class Sessao:
             return
         frase = limpar_para_fala(texto)
         if frase:
-            self.reprodutor.falar(frase)
+            self.reprodutor.falar(self.pronuncia.aplicar(frase))
 
     def _falar_pedacos(self, pedaco: str) -> None:
         for frase in self.separador.alimentar(pedaco):
