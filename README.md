@@ -92,18 +92,29 @@ O claude-voz não substitui o sistema de permissões do Claude Code; ele configu
 pedido quando ele pergunta. Em ordem:
 
 1. **Livres**: `Read`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, e os comandos Bash só de leitura da lista
-   `REGRAS_BASH_LEITURA` (`ls`, `cat`, `grep`, `git log`, `git status`, `git diff`, `docker ps`, `curl`, `wget`...).
+   `REGRAS_BASH_LEITURA` (`ls`, `cat`, `grep`, `git log`, `git status`, `git diff`, `docker ps`...).
    Quem avalia é o Claude Code, que corta a cadeia em `;`, `&&` e `|` e exige que cada pedaço bata numa regra.
+   As regras são por prefixo e não enxergam flag; por isso ficam de fora programas que escrevem ou executam por
+   flag (`curl`, `wget`, `sort -o`, `rg --pre`, `find -delete`, `sed -i`), e as flags perigosas do git
+   (`--output`, `--upload-pack`, `-c`) estão na lista de negação.
 2. **Sempre perguntam** (`REGRAS_PERGUNTAR`): `curl`/`wget` que enviam dado para fora (`-d`, `--data`, `-F`, `-T`,
-   `-X POST`...).
-3. **Nunca** (`REGRAS_NEGAR`): ler `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config/anthropic`, `~/.claude/.credentials.json`,
-   `~/.netrc`, `~/.docker/config.json`.
+   `-X POST`...), mesmo que você libere `curl` por `CLAUDE_VOZ_LIBERAR`.
+3. **Nunca** (`REGRAS_NEGAR`): ler `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`, `~/.config/anthropic`, `~/.config/gh`,
+   `~/.claude/.credentials.json`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc` e parecidos, pelo Read e
+   pelos programas de leitura do Bash; `curl file://`; `git` com `--output`, `--upload-pack`, `-c`.
 4. **Todo o resto pergunta**: editar e criar arquivo, `rm`, `git push`, `sudo`, `python3 -c`... A voz diz o que vai
-   fazer e o terminal espera `s`, `n` ou `t`. Programas que apagam, sobrescrevem ou publicam (`SEM_T_NA_SESSAO`) não
-   têm `t`: só `s`/`n`, a cada comando.
+   fazer e o terminal espera `s`, `n` ou `t`. Programas que apagam, sobrescrevem, publicam ou executam qualquer coisa
+   (`rm`, `cp`, `mv`, `git push`, `sudo`, `bash`, `python3`, `xargs`...; lista `SEM_T_NA_SESSAO`) não têm `t`: só
+   `s`/`n`, a cada comando. O `t` só vale para comando simples; uma cadeia com `&&` ou `|` pergunta de novo.
 
 Leitura é livre em toda a pasta pessoal (`CLAUDE_VOZ_DIRS`), para você perguntar sobre qualquer projeto a partir de
 qualquer lugar. As regras `allow`, `ask` e `deny` do seu `settings.json` continuam valendo por cima disso.
+
+Para liberar `curl` e `wget` (baixar para arquivo sem perguntar; `file://` e envio de dado continuam tratados):
+
+```bash
+export CLAUDE_VOZ_LIBERAR="Bash(curl *),Bash(wget *)"
+```
 
 ## Configuração
 
@@ -121,6 +132,7 @@ Tudo por variável de ambiente, com padrão:
 | `CLAUDE_VOZ_BASH_LEITURA` | `1` | `0` desliga a lista de comandos Bash livres |
 | `CLAUDE_VOZ_LIBERAR` | vazio | regras extras liberadas, ex.: `Bash(go test *),Bash(npm run *)` |
 | `CLAUDE_VOZ_NEGAR` | vazio | regras extras bloqueadas |
+| `CLAUDE_VOZ_CLI` | `claude` do `PATH` | caminho do executável do Claude Code |
 
 Outras vozes: o Speaches também roda o [Piper](https://github.com/rhasspy/piper); baixe com
 `curl -X POST http://127.0.0.1:8000/v1/models/speaches-ai/piper-pt_BR-faber-medium` e use
@@ -154,6 +166,9 @@ rm -rf ~/.cache/claude-voz
 ## Limites conhecidos
 
 - Só Linux com ALSA. O microfone e a saída usam o dispositivo padrão do sistema.
+- O Speaches não tem autenticação e o compose o expõe só em `127.0.0.1`. Se apontar `CLAUDE_VOZ_SPEACHES_URL` para
+  outra máquina, o áudio e o texto trafegam em claro na rede.
+- O log `~/.cache/claude-voz/claude-cli.log` cresce sem rotação.
 - O tempo até a primeira frase falada depende do tamanho da primeira frase que o modelo escreve (medido: 1,4 a 7 s).
 - As regras de leitura são por prefixo: `find -delete` e `sed -i` pedem, `git -C <pasta> log` é tratado à parte.
 - Com `STT_MODEL_TTL` e `TTS_MODEL_TTL` em 300 s no compose, a primeira pergunta depois de 5 min ocioso paga a
